@@ -7,59 +7,97 @@ on:
 
 jobs:
   build:
-    runs-on: macos-15
+    runs-on: macos-14
     timeout-minutes: 60
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_16.2.app
+      - name: Select Xcode 15.4
+        run: sudo xcode-select -s /Applications/Xcode_15.4.app
 
       - name: Show Xcode version
         run: xcodebuild -version
 
+      - name: List available schemes
+        run: xcodebuild -list -project Musicfy.xcodeproj
+
       - name: Resolve Swift Package dependencies
         run: |
+          cd Musicfy
           xcodebuild -resolvePackageDependencies \
             -project Musicfy.xcodeproj \
             -scheme Musicfy
+        continue-on-error: true
 
-      - name: Build (no signing)
+      - name: Build for generic iOS (no signing)
         run: |
-          xcodebuild \
+          cd Musicfy
+          set -o pipefail && xcodebuild \
             -project Musicfy.xcodeproj \
             -scheme Musicfy \
             -configuration Release \
             -destination "generic/platform=iOS" \
-            -archivePath ${{ runner.temp }}/Musicfy.xcarchive \
+            -archivePath "${{ runner.temp }}/Musicfy.xcarchive" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGN_IDENTITY="" \
-            PROVISIONING_PROFILE_SPECIFIER="" \
-            archive | xcpretty || true
+            CODE_SIGNING_REQUIRED=NO \
+            DEVELOPMENT_TEAM="" \
+            archive 2>&1 | tee build.log
+        continue-on-error: false
+
+      - name: Check archive structure
+        run: |
+          echo "=== Archive structure ==="
+          ls -la "${{ runner.temp }}/Musicfy.xcarchive" || echo "Archive not found"
+          find "${{ runner.temp }}/Musicfy.xcarchive" -type f -o -type d | head -20 || echo "Nothing to find"
 
       - name: Export unsigned IPA
+        if: success()
         run: |
-          mkdir -p ${{ runner.temp }}/ipa
-          # Buat Payload folder dari archive
           ARCHIVE="${{ runner.temp }}/Musicfy.xcarchive"
-          APP=$(find "$ARCHIVE/Products" -name "*.app" | head -1)
-          mkdir -p /tmp/Payload
-          cp -r "$APP" /tmp/Payload/
-          cd /tmp
-          zip -r "${{ runner.temp }}/ipa/Musicfy-unsigned.ipa" Payload/
+          
+          # Find the .app bundle
+          APP_PATH=$(find "$ARCHIVE" -name "Musicfy.app" -print -quit)
+          
+          if [ -z "$APP_PATH" ]; then
+            echo "Error: Musicfy.app not found in archive"
+            exit 1
+          fi
+          
+          echo "Found app at: $APP_PATH"
+          
+          # Create IPA
+          mkdir -p "${{ runner.temp }}/Payload"
+          cp -r "$APP_PATH" "${{ runner.temp }}/Payload/"
+          cd "${{ runner.temp }}"
+          zip -r "Musicfy-unsigned.ipa" Payload/
+          
+          echo "IPA created successfully"
+          ls -lh Musicfy-unsigned.ipa
+
+      - name: Upload build log (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-${{ github.run_number }}
+          path: Musicfy/build.log
+          retention-days: 7
 
       - name: Upload IPA artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: Musicfy-unsigned-${{ github.run_number }}
-          path: ${{ runner.temp }}/ipa/Musicfy-unsigned.ipa
+          path: ${{ runner.temp }}/Musicfy-unsigned.ipa
           retention-days: 30
 
-      - name: Upload Archive artifact
+      - name: Upload dSYM (for debugging)
+        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Musicfy-archive-${{ github.run_number }}
-          path: ${{ runner.temp }}/Musicfy.xcarchive
+          name: Musicfy-dSYM-${{ github.run_number }}
+          path: ${{ runner.temp }}/Musicfy.xcarchive/dSYMs
           retention-days: 7
+        continue-on-error: true

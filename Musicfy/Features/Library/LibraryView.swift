@@ -75,7 +75,7 @@ struct LibraryTrackRow: View {
     @EnvironmentObject private var audioEngine: AudioEngine
 
     var isPlaying: Bool {
-        audioEngine.currentTrack?.videoID == track.videoID && audioEngine.isPlaying
+        audioEngine.currentTrackInfo?.videoID == track.videoID && audioEngine.isPlaying
     }
 
     var body: some View {

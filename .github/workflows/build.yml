@@ -25,7 +25,6 @@ jobs:
 
       - name: Resolve Swift Package dependencies
         run: |
-          cd Musicfy
           xcodebuild -resolvePackageDependencies \
             -project Musicfy.xcodeproj \
             -scheme Musicfy
@@ -33,7 +32,6 @@ jobs:
 
       - name: Build for generic iOS (no signing)
         run: |
-          cd Musicfy
           set -o pipefail && xcodebuild \
             -project Musicfy.xcodeproj \
             -scheme Musicfy \
@@ -82,7 +80,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: build-log-${{ github.run_number }}
-          path: Musicfy/build.log
+          path: build.log
           retention-days: 7
 
       - name: Upload IPA artifact

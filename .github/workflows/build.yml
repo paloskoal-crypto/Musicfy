@@ -32,6 +32,11 @@ jobs:
         run: |
           mkdir -p build/ipa/Payload
           cp -R build/DerivedData/Build/Products/Release-iphoneos/Musicfy.app build/ipa/Payload/
+          
+          # Remove code signature (critical for sideloading)
+          rm -rf build/ipa/Payload/Musicfy.app/_CodeSignature
+          rm -f build/ipa/Payload/Musicfy.app/embedded.mobileprovision
+          
           cd build/ipa
           zip -qry ../Musicfy-unsigned.ipa Payload
 

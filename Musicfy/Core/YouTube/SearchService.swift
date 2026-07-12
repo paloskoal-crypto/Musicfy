@@ -25,7 +25,17 @@ final class SearchService {
         ].compactMap { $0 }
 
         let data = try await fetch(url: components.url!)
-        let response = try JSONDecoder().decode(SearchListResponse.self, from: data)
+        
+        let response: SearchListResponse
+        do {
+            response = try JSONDecoder().decode(SearchListResponse.self, from: data)
+        } catch {
+            print("[SearchService] ❌ Search JSON decode error: \(error)")
+            if let jsonStr = String(data: data, encoding: .utf8) {
+                print("[SearchService] Response: \(jsonStr.prefix(500))")
+            }
+            throw error
+        }
 
         let videoIDs = response.items.compactMap { $0.id.videoId }
         let details = try await fetchVideoDetails(videoIDs: videoIDs)
@@ -61,7 +71,18 @@ final class SearchService {
         ]
 
         let data = try await fetch(url: components.url!)
-        let response = try JSONDecoder().decode(VideoListResponse.self, from: data)
+        
+        let response: VideoListResponse
+        do {
+            response = try JSONDecoder().decode(VideoListResponse.self, from: data)
+        } catch {
+            print("[SearchService] ❌ Trending JSON decode error: \(error)")
+            if let jsonStr = String(data: data, encoding: .utf8) {
+                print("[SearchService] Response: \(jsonStr.prefix(500))")
+            }
+            throw error
+        }
+        
         return response.items.map { item in
             SearchResult(
                 id: item.id,
@@ -163,13 +184,28 @@ final class SearchService {
     // MARK: - Network
 
     private func fetch(url: URL) async throws -> Data {
+        print("[SearchService] Fetching: \(url.absoluteString)")
         let (data, response) = try await session.data(from: url)
-        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-            if let http = response as? HTTPURLResponse {
-                throw SearchServiceError.httpError(http.statusCode)
-            }
+        guard let http = response as? HTTPURLResponse else {
+            print("[SearchService] ❌ Invalid HTTP response")
             throw SearchServiceError.unknown
         }
+        
+        print("[SearchService] Status: \(http.statusCode)")
+        
+        guard http.statusCode == 200 else {
+            // Log response body untuk debugging
+            if let responseStr = String(data: data, encoding: .utf8) {
+                print("[SearchService] ❌ Error response: \(responseStr)")
+            }
+            throw SearchServiceError.httpError(http.statusCode)
+        }
+        
+        // Log successful response untuk debugging
+        if let responseStr = String(data: data, encoding: .utf8) {
+            print("[SearchService] ✅ Response preview: \(responseStr.prefix(200))...")
+        }
+        
         return data
     }
 }

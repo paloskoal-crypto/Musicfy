@@ -151,31 +151,45 @@ final class AudioEngine: ObservableObject {
     }
 
     private func resolveAudioURL(for trackInfo: TrackInfo) async throws -> URL {
+        print("[AudioEngine] 🎵 Resolving audio for: \(trackInfo.title) (\(trackInfo.videoID))")
+        
         // Cek file lokal dulu
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         let localURL = docs.appendingPathComponent("Downloads/\(trackInfo.videoID).m4a")
         if FileManager.default.fileExists(atPath: localURL.path) {
+            print("[AudioEngine] ✅ Found local file: \(localURL.path)")
             return localURL
         }
 
         // Streaming via YouTubeKit
+        print("[AudioEngine] 📡 Fetching YouTube streams...")
         let yt = YouTube(videoID: trackInfo.videoID)
         let streams = try await yt.streams
-        guard let stream = streams
-            .filterAudioOnly()
+        
+        print("[AudioEngine] 🔍 Available streams: \(streams.count)")
+        let audioStreams = streams.filterAudioOnly()
+        print("[AudioEngine] 🎧 Audio-only streams: \(audioStreams.count)")
+        
+        guard let stream = audioStreams
             .filter({ $0.fileExtension == .m4a })
             .highestAudioBitrateStream() ??
-            streams.filterAudioOnly().highestAudioBitrateStream() else {
+            audioStreams.highestAudioBitrateStream() else {
+            print("[AudioEngine] ❌ No audio stream available")
             throw AudioEngineError.noStreamAvailable
         }
+        
+        print("[AudioEngine] ✅ Selected stream: \(stream.url.absoluteString)")
         return stream.url
     }
 
     private func loadAndPlay(url: URL, trackInfo: TrackInfo) async {
+        print("[AudioEngine] 🔊 Loading audio from: \(url.absoluteString.prefix(100))...")
         playerNode.stop()
 
         do {
             let file = try AVAudioFile(forReading: url)
+            print("[AudioEngine] ✅ Audio file loaded. Duration: \(Double(file.length) / file.fileFormat.sampleRate)s")
+            
             self.audioFile = file
             self.duration = Double(file.length) / file.fileFormat.sampleRate
             self.currentTime = 0
@@ -196,9 +210,12 @@ final class AudioEngine: ObservableObject {
 
             startTimeTracking()
             updateNowPlayingInfo(trackInfo: trackInfo)
+            
+            print("[AudioEngine] ▶️ Playback started!")
 
         } catch {
-            print("[AudioEngine] Load error: \(error)")
+            print("[AudioEngine] ❌ Load error: \(error.localizedDescription)")
+            print("[AudioEngine] ❌ Full error: \(error)")
             isBuffering = false
         }
     }

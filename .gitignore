@@ -1,0 +1,41 @@
+# Xcode
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+DerivedData/
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Swift Package Manager
+.build/
+.swiftpm/
+*.resolved
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Xcode user settings
+xcuserdata/
+
+# Backup files
+*.orig
+*.bak
+
+# Fastlane (jika nanti dipakai)
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
+
+# Build artifacts
+build/
+Pods/
+
+# Secrets — jangan commit
+*.p12
+*.mobileprovision
+*.cer
+secrets.xcconfig

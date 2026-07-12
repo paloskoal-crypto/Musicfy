@@ -1,0 +1,65 @@
+name: Build Musicfy IPA
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.2.app
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Resolve Swift Package dependencies
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project Musicfy.xcodeproj \
+            -scheme Musicfy
+
+      - name: Build (no signing)
+        run: |
+          xcodebuild \
+            -project Musicfy.xcodeproj \
+            -scheme Musicfy \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -archivePath ${{ runner.temp }}/Musicfy.xcarchive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            archive | xcpretty || true
+
+      - name: Export unsigned IPA
+        run: |
+          mkdir -p ${{ runner.temp }}/ipa
+          # Buat Payload folder dari archive
+          ARCHIVE="${{ runner.temp }}/Musicfy.xcarchive"
+          APP=$(find "$ARCHIVE/Products" -name "*.app" | head -1)
+          mkdir -p /tmp/Payload
+          cp -r "$APP" /tmp/Payload/
+          cd /tmp
+          zip -r "${{ runner.temp }}/ipa/Musicfy-unsigned.ipa" Payload/
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Musicfy-unsigned-${{ github.run_number }}
+          path: ${{ runner.temp }}/ipa/Musicfy-unsigned.ipa
+          retention-days: 30
+
+      - name: Upload Archive artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Musicfy-archive-${{ github.run_number }}
+          path: ${{ runner.temp }}/Musicfy.xcarchive
+          retention-days: 7

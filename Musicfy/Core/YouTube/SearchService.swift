@@ -42,6 +42,12 @@ final class SearchService {
 
         let results = response.items.compactMap { item -> SearchResult? in
             guard let videoID = item.id.videoId else { return nil }
+            // Skip live streams - YouTubeKit tidak support
+            let liveStatus = item.snippet.liveBroadcastContent ?? "none"
+            if liveStatus == "live" || liveStatus == "upcoming" {
+                print("[SearchService] ⏭️ Skipping \(liveStatus) video: \(item.snippet.title)")
+                return nil
+            }
             let detail = details[videoID]
             return SearchResult(
                 id: videoID,
@@ -83,8 +89,14 @@ final class SearchService {
             throw error
         }
         
-        return response.items.map { item in
-            SearchResult(
+        return response.items.compactMap { item -> SearchResult? in
+            // Skip live streams
+            let liveStatus = item.snippet.liveBroadcastContent ?? "none"
+            if liveStatus == "live" || liveStatus == "upcoming" {
+                print("[SearchService] ⏭️ Skipping \(liveStatus) video: \(item.snippet.title)")
+                return nil
+            }
+            return SearchResult(
                 id: item.id,
                 title: item.snippet.title,
                 channelName: item.snippet.channelTitle,
@@ -283,6 +295,7 @@ private struct Snippet: Decodable {
     let channelTitle: String
     let publishedAt: String
     let thumbnails: Thumbnails
+    let liveBroadcastContent: String?  // "live", "upcoming", or "none"
 
     struct Thumbnails: Decodable {
         let `default`: Thumbnail

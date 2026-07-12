@@ -112,6 +112,7 @@ final class AudioEngine: ObservableObject {
     // MARK: - Playback (TrackInfo — tidak perlu SwiftData context)
 
     func play(trackInfo: TrackInfo, in queue: [TrackInfo] = []) async {
+        print("[AudioEngine] 🎵 Play request: \(trackInfo.title)")
         streamTask?.cancel()
         currentTrackInfo = trackInfo
         isBuffering = true
@@ -128,8 +129,15 @@ final class AudioEngine: ObservableObject {
                 guard !Task.isCancelled else { return }
                 await loadAndPlay(url: url, trackInfo: trackInfo)
             } catch {
-                print("[AudioEngine] Failed to resolve URL: \(error)")
-                await MainActor.run { isBuffering = false }
+                print("[AudioEngine] ❌ Playback failed: \(error.localizedDescription)")
+                await MainActor.run {
+                    isBuffering = false
+                    // Auto-skip ke next kalau ada queue
+                    if !queue.isEmpty && currentIndex < queue.count - 1 {
+                        print("[AudioEngine] ⏭️ Auto-skipping to next track...")
+                        Task { await playNext() }
+                    }
+                }
             }
         }
     }

@@ -139,8 +139,9 @@ final class DownloadManager: ObservableObject {
 
     private func markTrackAsDownloaded(trackInfo: TrackInfo, fileName: String) {
         guard let context = modelContext else { return }
+        let videoID = trackInfo.videoID // Capture to local constant
         let descriptor = FetchDescriptor<Track>(
-            predicate: #Predicate { $0.videoID == trackInfo.videoID }
+            predicate: #Predicate { $0.videoID == videoID }
         )
         
         if let track = try? context.fetch(descriptor).first {

@@ -47,14 +47,35 @@ jobs:
       - name: Find and package app
         if: success()
         run: |
-          find . -name "Musicfy.app" -type d
+          echo "=== Finding Musicfy.app ==="
           APP=$(find ~/Library/Developer/Xcode/DerivedData -name "Musicfy.app" -type d | head -1)
-          if [ -n "$APP" ]; then
-            mkdir Payload
-            cp -r "$APP" Payload/
-            zip -r Musicfy-unsigned.ipa Payload/
-            ls -lh Musicfy-unsigned.ipa
+          
+          if [ -z "$APP" ]; then
+            echo "Error: Musicfy.app not found"
+            exit 1
           fi
+          
+          echo "Found app at: $APP"
+          ls -la "$APP"
+          
+          # Create proper IPA structure
+          mkdir -p Payload
+          cp -r "$APP" Payload/
+          
+          # Remove code signature (for sideloading)
+          rm -rf "Payload/Musicfy.app/_CodeSignature" || true
+          rm -f "Payload/Musicfy.app/embedded.mobileprovision" || true
+          
+          # Create IPA
+          zip -r Musicfy-unsigned.ipa Payload/
+          
+          echo "=== IPA Structure ==="
+          unzip -l Musicfy-unsigned.ipa | head -30
+          echo "=== IPA Info ==="
+          ls -lh Musicfy-unsigned.ipa
+          
+          # Verify bundle ID
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "Payload/Musicfy.app/Info.plist" || echo "No bundle ID found"
 
       - name: Upload logs
         if: always()

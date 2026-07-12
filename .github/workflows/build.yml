@@ -20,67 +20,72 @@ jobs:
       - name: Show Xcode version
         run: xcodebuild -version
 
-      - name: List available schemes
-        run: xcodebuild -list -project Musicfy.xcodeproj
+      - name: Show Swift version
+        run: swift --version
 
       - name: Resolve Swift Package dependencies
         run: |
           xcodebuild -resolvePackageDependencies \
             -project Musicfy.xcodeproj \
             -scheme Musicfy
-        continue-on-error: true
 
-      - name: Build for generic iOS (no signing)
+      - name: Build for iOS Simulator (to verify compilation)
         run: |
-          set -o pipefail && xcodebuild \
+          set -o pipefail && xcodebuild clean build \
             -project Musicfy.xcodeproj \
             -scheme Musicfy \
             -configuration Release \
+            -destination "platform=iOS Simulator,name=iPhone 15,OS=17.5" \
+            -derivedDataPath ./build \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee build-sim.log
+
+      - name: Build for generic iOS device
+        run: |
+          set -o pipefail && xcodebuild clean build \
+            -project Musicfy.xcodeproj \
+            -scheme Musicfy \
+            -configuration Release \
+            -sdk iphoneos \
             -destination "generic/platform=iOS" \
-            -archivePath "${{ runner.temp }}/Musicfy.xcarchive" \
+            -derivedDataPath ./build \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             DEVELOPMENT_TEAM="" \
-            archive 2>&1 | tee build.log
-        continue-on-error: false
+            2>&1 | tee build-device.log
 
-      - name: Check archive structure
+      - name: Locate built app
         run: |
-          echo "=== Archive structure ==="
-          ls -la "${{ runner.temp }}/Musicfy.xcarchive" || echo "Archive not found"
-          find "${{ runner.temp }}/Musicfy.xcarchive" -type f -o -type d | head -20 || echo "Nothing to find"
+          echo "=== Finding Musicfy.app ==="
+          find ./build -name "Musicfy.app" -type d
 
-      - name: Export unsigned IPA
-        if: success()
+      - name: Create IPA from build output
         run: |
-          ARCHIVE="${{ runner.temp }}/Musicfy.xcarchive"
-          
-          # Find the .app bundle
-          APP_PATH=$(find "$ARCHIVE" -name "Musicfy.app" -print -quit)
+          APP_PATH=$(find ./build/Build/Products/Release-iphoneos -name "Musicfy.app" -type d -print -quit)
           
           if [ -z "$APP_PATH" ]; then
-            echo "Error: Musicfy.app not found in archive"
+            echo "Error: Musicfy.app not found"
             exit 1
           fi
           
           echo "Found app at: $APP_PATH"
           
-          # Create IPA
-          mkdir -p "${{ runner.temp }}/Payload"
-          cp -r "$APP_PATH" "${{ runner.temp }}/Payload/"
-          cd "${{ runner.temp }}"
-          zip -r "Musicfy-unsigned.ipa" Payload/
+          mkdir -p Payload
+          cp -r "$APP_PATH" Payload/
+          zip -r Musicfy-unsigned.ipa Payload/
           
-          echo "IPA created successfully"
+          echo "=== IPA created ==="
           ls -lh Musicfy-unsigned.ipa
 
-      - name: Upload build log (on failure)
+      - name: Upload build logs (on failure)
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: build-log-${{ github.run_number }}
-          path: build.log
+          name: build-logs-${{ github.run_number }}
+          path: |
+            build-sim.log
+            build-device.log
           retention-days: 7
 
       - name: Upload IPA artifact
@@ -88,14 +93,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Musicfy-unsigned-${{ github.run_number }}
-          path: ${{ runner.temp }}/Musicfy-unsigned.ipa
+          path: Musicfy-unsigned.ipa
           retention-days: 30
-
-      - name: Upload dSYM (for debugging)
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: Musicfy-dSYM-${{ github.run_number }}
-          path: ${{ runner.temp }}/Musicfy.xcarchive/dSYMs
-          retention-days: 7
-        continue-on-error: true

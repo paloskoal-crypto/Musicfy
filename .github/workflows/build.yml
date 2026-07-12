@@ -3,101 +3,40 @@ name: Build Musicfy IPA
 on:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: macos-14
-    timeout-minutes: 60
-
+    runs-on: macos-15
+    
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_15.4.app
+        run: sudo xcode-select -s /Applications/Xcode.app
 
-      - name: Show versions
-        run: |
-          xcodebuild -version
-          swift --version
-
-      - name: Build for Release
+      - name: Build iOS app
         run: |
           xcodebuild \
             -project Musicfy.xcodeproj \
             -scheme Musicfy \
             -configuration Release \
-            -sdk iphoneos \
-            -destination "generic/platform=iOS" \
-            -derivedDataPath build \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/DerivedData \
             CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            PRODUCT_BUNDLE_IDENTIFIER="com.musicfy.app" \
-            clean build 2>&1 | tee build.log
-          
-          BUILD_EXIT_CODE=${PIPESTATUS[0]}
-          
-          if [ $BUILD_EXIT_CODE -ne 0 ]; then
-            echo "=== BUILD FAILED ==="
-            grep -A 5 "error:" build.log || tail -300 build.log
-            exit $BUILD_EXIT_CODE
-          fi
+            build
 
-      - name: Create IPA
+      - name: Package unsigned IPA
         run: |
-          # Find built app
-          APP_PATH=$(find build/Build/Products/Release-iphoneos -name "Musicfy.app" -type d | head -1)
-          
-          if [ -z "$APP_PATH" ]; then
-            echo "Error: Musicfy.app not found"
-            find build -name "*.app" -type d
-            exit 1
-          fi
-          
-          echo "Found app: $APP_PATH"
-          
-          # Remove existing signature
-          rm -rf "$APP_PATH/_CodeSignature" 2>/dev/null || true
-          rm -f "$APP_PATH/embedded.mobileprovision" 2>/dev/null || true
-          
-          # Verify Info.plist exists
-          if [ ! -f "$APP_PATH/Info.plist" ]; then
-            echo "Error: Info.plist not found in app bundle"
-            ls -la "$APP_PATH"
-            exit 1
-          fi
-          
-          # Create Payload structure
-          mkdir -p Payload
-          cp -r "$APP_PATH" Payload/
-          
-          # Create IPA
-          zip -qr Musicfy.ipa Payload
-          
-          # Verify IPA
-          echo "=== IPA Created ==="
-          ls -lh Musicfy.ipa
-          unzip -l Musicfy.ipa | grep -E "Payload/Musicfy.app/(Info.plist|Musicfy)" | head -10
-          
-          # Show bundle info
-          echo "=== Bundle Info ==="
-          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "Payload/Musicfy.app/Info.plist"
-          /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "Payload/Musicfy.app/Info.plist"
-          /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "Payload/Musicfy.app/Info.plist"
+          mkdir -p build/ipa/Payload
+          cp -R build/DerivedData/Build/Products/Release-iphoneos/Musicfy.app build/ipa/Payload/
+          cd build/ipa
+          zip -qry ../Musicfy-unsigned.ipa Payload
 
-      - name: Upload build log
-        if: always()
+      - name: Upload unsigned IPA
         uses: actions/upload-artifact@v4
         with:
-          name: build-log-${{ github.run_number }}
-          path: build.log
-          retention-days: 7
-
-      - name: Upload IPA
-        uses: actions/upload-artifact@v4
-        with:
-          name: Musicfy-IPA-${{ github.run_number }}
-          path: Musicfy.ipa
-          retention-days: 30
+          name: Musicfy-unsigned-ipa
+          path: build/Musicfy-unsigned.ipa

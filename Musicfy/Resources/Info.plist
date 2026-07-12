@@ -14,8 +14,8 @@
     <string>1.0</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
-    <key>CFBundlePrincipalClass</key>
-    <string>NSApplication</string>
+    <key>CFBundleExecutable</key>
+    <string>$(EXECUTABLE_NAME)</string>
     <key>LSRequiresIPhoneOS</key>
     <true/>
     <key>UILaunchScreen</key>
@@ -28,17 +28,16 @@
     <array>
         <string>UIInterfaceOrientationPortrait</string>
     </array>
-    <!-- Audio background playback -->
     <key>UIBackgroundModes</key>
     <array>
         <string>audio</string>
-        <string>fetch</string>
     </array>
-    <!-- Network -->
     <key>NSAppTransportSecurity</key>
     <dict>
         <key>NSAllowsArbitraryLoads</key>
         <true/>
     </dict>
+    <key>MinimumOSVersion</key>
+    <string>17.0</string>
 </dict>
 </plist>

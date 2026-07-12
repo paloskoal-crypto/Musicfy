@@ -33,8 +33,16 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
-            clean build \
-            | tee build.log | xcpretty --color --report html || cat build.log
+            clean build 2>&1 | tee build.log
+          
+          BUILD_EXIT_CODE=${PIPESTATUS[0]}
+          
+          if [ $BUILD_EXIT_CODE -ne 0 ]; then
+            echo "=== BUILD FAILED ==="
+            echo "=== Showing errors from build.log ==="
+            grep -A 5 "error:" build.log || cat build.log | tail -300
+            exit $BUILD_EXIT_CODE
+          fi
 
       - name: Find and package app
         if: success()

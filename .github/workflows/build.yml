@@ -1,15 +1,14 @@
-name: Build Musicfy IPA
+name: iOS
 
 on:
   push:
-    branches: [main]
+    branches: [ main ]
   pull_request:
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: macos-15
-    
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -32,11 +31,6 @@ jobs:
         run: |
           mkdir -p build/ipa/Payload
           cp -R build/DerivedData/Build/Products/Release-iphoneos/Musicfy.app build/ipa/Payload/
-          
-          # Remove code signature (critical for sideloading)
-          rm -rf build/ipa/Payload/Musicfy.app/_CodeSignature
-          rm -f build/ipa/Payload/Musicfy.app/embedded.mobileprovision
-          
           cd build/ipa
           zip -qry ../Musicfy-unsigned.ipa Payload
 

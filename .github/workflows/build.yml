@@ -14,100 +14,54 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Select Xcode 15.4
+      - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_15.4.app
 
-      - name: Show Xcode version
-        run: xcodebuild -version
-
-      - name: Show Swift version
-        run: swift --version
-
-      - name: Resolve Swift Package dependencies
+      - name: Show versions
         run: |
-          xcodebuild -resolvePackageDependencies \
-            -project Musicfy.xcodeproj \
-            -scheme Musicfy
+          xcodebuild -version
+          swift --version
 
-      - name: Build for iOS Simulator (to verify compilation)
+      - name: Build (simple, verbose errors)
         run: |
-          xcodebuild clean build \
-            -project Musicfy.xcodeproj \
-            -scheme Musicfy \
-            -configuration Release \
-            -destination "platform=iOS Simulator,name=iPhone 15,OS=17.5" \
-            -derivedDataPath ./build \
-            CODE_SIGNING_ALLOWED=NO \
-            ENABLE_BITCODE=NO \
-            SWIFT_COMPILATION_MODE=wholemodule \
-            -showBuildSettings \
-            2>&1 | tee build-sim.log
-          
-          if [ ${PIPESTATUS[0]} -ne 0 ]; then
-            echo "=== BUILD FAILED - Showing last 200 lines ==="
-            tail -200 build-sim.log
-            exit 1
-          fi
-
-      - name: Build for generic iOS device
-        run: |
-          xcodebuild clean build \
+          xcodebuild \
             -project Musicfy.xcodeproj \
             -scheme Musicfy \
             -configuration Release \
             -sdk iphoneos \
             -destination "generic/platform=iOS" \
-            -derivedDataPath ./build \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
-            DEVELOPMENT_TEAM="" \
-            ENABLE_BITCODE=NO \
-            2>&1 | tee build-device.log
-          
-          if [ ${PIPESTATUS[0]} -ne 0 ]; then
-            echo "=== BUILD FAILED - Showing last 200 lines ==="
-            tail -200 build-device.log
-            exit 1
+            clean build \
+            | tee build.log | xcpretty --color --report html || cat build.log
+
+      - name: Find and package app
+        if: success()
+        run: |
+          find . -name "Musicfy.app" -type d
+          APP=$(find ~/Library/Developer/Xcode/DerivedData -name "Musicfy.app" -type d | head -1)
+          if [ -n "$APP" ]; then
+            mkdir Payload
+            cp -r "$APP" Payload/
+            zip -r Musicfy-unsigned.ipa Payload/
+            ls -lh Musicfy-unsigned.ipa
           fi
 
-      - name: Locate built app
-        run: |
-          echo "=== Finding Musicfy.app ==="
-          find ./build -name "Musicfy.app" -type d
-
-      - name: Create IPA from build output
-        run: |
-          APP_PATH=$(find ./build/Build/Products/Release-iphoneos -name "Musicfy.app" -type d -print -quit)
-          
-          if [ -z "$APP_PATH" ]; then
-            echo "Error: Musicfy.app not found"
-            exit 1
-          fi
-          
-          echo "Found app at: $APP_PATH"
-          
-          mkdir -p Payload
-          cp -r "$APP_PATH" Payload/
-          zip -r Musicfy-unsigned.ipa Payload/
-          
-          echo "=== IPA created ==="
-          ls -lh Musicfy-unsigned.ipa
-
-      - name: Upload build logs (on failure)
-        if: failure()
+      - name: Upload logs
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: build-logs-${{ github.run_number }}
+          name: logs-${{ github.run_number }}
           path: |
-            build-sim.log
-            build-device.log
+            build.log
+            build/reports/
           retention-days: 7
 
-      - name: Upload IPA artifact
+      - name: Upload IPA
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Musicfy-unsigned-${{ github.run_number }}
+          name: Musicfy-${{ github.run_number }}
           path: Musicfy-unsigned.ipa
           retention-days: 30
